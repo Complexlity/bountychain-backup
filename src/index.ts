@@ -15,14 +15,13 @@ import {
 } from "./queries";
 import { StatusCode } from "hono/utils/http-status";
 const app = new Hono();
+
 //arbitrum sepolia
 const activeChain: supportedChainIds[number] = 421614;
 
-// app.get("/bounties", async (c) => {
-//   console.log(env);
-//   const bounties = await db.query.bounties.findFirst();
-//   return c.json(bounties);
-// });
+app.get("/", async (c) => {
+  return c.json({ message: "Active and Strong" });
+});
 
 app.post("/bounties/complete", async (c) => {
   //Try to insert to db directly if main server main have gone down for some reason
@@ -40,7 +39,6 @@ app.post("/bounties/complete", async (c) => {
 
   return c.json({ message: "Successfully backed up completion data" });
 });
-
 
 app.post("/bounties", async (c) => {
   const body = await c.req.json();
