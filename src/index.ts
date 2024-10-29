@@ -15,7 +15,6 @@ import {
 } from "./queries";
 import { StatusCode } from "hono/utils/http-status";
 const app = new Hono();
-const BOUNTIES_KEY = "onchain-bounties";
 //arbitrum sepolia
 const activeChain: supportedChainIds[number] = 421614;
 
@@ -25,9 +24,27 @@ const activeChain: supportedChainIds[number] = 421614;
 //   return c.json(bounties);
 // });
 
-app.post("/bounties/create", async (c) => {
+app.post("/bounties/complete", async (c) => {
+  //Try to insert to db directly if main server main have gone down for some reason
+  const formData = await c.req.json();
+  const res = await completeHandler(formData);
+
+  if (res) c.json({ message: res.message }, res.status);
+
+  const backup = await completeBountyBackup(formData).catch((e) => {
+    return false;
+  });
+
+  if (!backup)
+    return c.json({ message: "Could not backup completion data" }, 500);
+
+  return c.json({ message: "Successfully backed up completion data" });
+});
+
+
+app.post("/bounties", async (c) => {
   const body = await c.req.json();
-  const res = await create(body);
+  const res = await createHandler(body);
   if (res) c.json({ message: res.message }, res.status);
 
   const bountyBackup = await createBountyBackup(body).catch((e) => {
@@ -40,7 +57,7 @@ app.post("/bounties/create", async (c) => {
   return c.json({ message: "Successfully backedup bounty data" });
 });
 
-async function create(
+async function createHandler(
   body: any
 ): Promise<{ message: string; status: StatusCode } | null> {
   const { error, data: parsedBody } = insertBountiesSchema.safeParse(body);
@@ -67,24 +84,8 @@ async function create(
   if (newBounty) return { message: "Bounty added successfully", status: 200 };
   return null;
 }
-app.post("/bounties/pay", async (c) => {
-  //Try to insert to db directly if main server main have gone down for some reason
-  const formData = await c.req.json();
-  const res = await pay(formData);
 
-  if (res) c.json({ message: res.message }, res.status);
-
-  const backup = await completeBountyBackup(formData).catch((e) => {
-    return false;
-  });
-
-  if (!backup)
-    return c.json({ message: "Could not backup completion data" }, 500);
-
-  return c.json({ message: "Successfully backed up completion data" });
-});
-
-async function pay(
+async function completeHandler(
   formData: any
 ): Promise<{ message: string; status: StatusCode } | null> {
   const { error, data } = completeBountySchema.safeParse(formData);
