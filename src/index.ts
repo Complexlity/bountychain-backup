@@ -15,8 +15,7 @@ app.get("/bounties", async (c) => {
 
 app.post("/bounties", async (c) => {
   const body = await c.req.json();
-  console.log(process.env.HELLO);
-  return c.json(body)
+  return c.json(body);
 });
 
 export default {
