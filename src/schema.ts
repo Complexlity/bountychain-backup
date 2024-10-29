@@ -7,6 +7,8 @@ import {
   unique,
 } from "drizzle-orm/sqlite-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
+import { Address } from "viem";
+import { z } from "zod";
 
 const sqliteBoolean = integer({ mode: "boolean" });
 
@@ -99,3 +101,15 @@ export const insertSubmissionsSchema = createInsertSchema(submissions, {
     createdAt: true,
     updatedAt: true,
   });
+
+export const completeBountySchema = z.object({
+  hash: z
+    .string()
+    .startsWith("0x")
+    .transform((val): Address => val as Address),
+  bountyId: z
+    .string()
+    .startsWith("0x")
+    .transform((val): Address => val as Address),
+  submissionId: z.coerce.number(),
+});

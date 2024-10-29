@@ -12,10 +12,6 @@ const EnvSchema = z
     DATABASE_URL: z.string().url(),
     DATABASE_AUTH_TOKEN: z.string().optional(),
     DIALECT: Dialect.optional(),
-    BOUNTY_CONTRACT_ADDRESS: z
-      .string()
-      .min(1)
-      .refine((val) => isAddress(val)),
   })
   .superRefine((input, ctx) => {
     if (input.NODE_ENV === "production" && !input.DATABASE_AUTH_TOKEN) {
