@@ -1,24 +1,13 @@
-import { eq, and } from "drizzle-orm";
-import { z } from "zod";
-import db from "./db";
-import {
-  insertBountiesSchema,
-  bounties,
-  submissions,
-  insertSubmissionsSchema,
-  completeBountySchema,
-} from "./schema";
-import { kvStore as redis } from "./redis";
+import { and, eq } from "drizzle-orm";
 import {
   BOUNTY_COMPLETE_SET_KEY,
   BOUNTY_KEY_PREFIX,
   BOUNTY_SET_KEY,
 } from "./constants";
-
-type CreateBountySchema = z.infer<typeof insertBountiesSchema>;
-type CreateSubmissionSchema = z.infer<typeof insertSubmissionsSchema>;
-
-type CompleteBountySchema = z.infer<typeof completeBountySchema>;
+import db from "./db";
+import { kvStore, kvStore as redis } from "./redis";
+import { bounties, insertBountiesSchema, submissions } from "./schema";
+import { CompleteBountySchema, CreateBountySchema } from "./types";
 
 export async function createBounty(newBounty: CreateBountySchema) {
   insertBountiesSchema.parse(newBounty);
@@ -38,16 +27,6 @@ export async function completeBounty(bountyId: string, submissionId: number) {
       and(eq(submissions.bountyId, bountyId), eq(submissions.id, submissionId))
     );
   return true;
-}
-
-// Type definition for Bounty
-interface Bounty {
-  id: string;
-  creator: string;
-  title: string;
-  description: string;
-  amount: number;
-  status: string | undefined;
 }
 
 /**
@@ -101,4 +80,82 @@ export async function completeBountyBackup(
 
   // Verify both operations succeeded
   return setResult !== null && addResult !== null;
+}
+
+export async function processBackupBounties() {
+  try {
+    // Get all bounty IDs from the set
+    const bountyIds = await kvStore.smembers(BOUNTY_SET_KEY);
+
+    // Process each bounty
+    for (const bountyId of bountyIds) {
+      const bountyKey = `${BOUNTY_KEY_PREFIX}${bountyId}`;
+      const bounty = (await kvStore.hgetall(bountyKey)) as CreateBountySchema;
+
+      if (bounty) {
+        try {
+          // Try to create the bounty in the main database
+          const newBounty = await createBounty(bounty);
+
+          if (newBounty) {
+            // Bounty was successfully created, remove it from the backup set
+            await kvStore.srem(BOUNTY_SET_KEY, bountyId);
+            await kvStore.hdel(bountyKey);
+            console.log(`Successfully created bounty ${bountyId} from backup`);
+          } else {
+            console.error(`Failed to create bounty ${bountyId} from backup`);
+          }
+        } catch (error) {
+          console.error(
+            `Error creating bounty ${bountyId} from backup:`,
+            error
+          );
+        }
+      } else {
+        console.error(`Bounty ${bountyId} not found in backup`);
+      }
+    }
+
+    // Process completed bounties
+    const completedBountyIds = await kvStore.smembers(BOUNTY_COMPLETE_SET_KEY);
+
+    for (const bountyId of completedBountyIds) {
+      const bountyKey = `${BOUNTY_KEY_PREFIX}${bountyId}`;
+      const bountyCompletionData = (await kvStore.hgetall(
+        bountyKey
+      )) as CompleteBountySchema;
+
+      if (bountyCompletionData) {
+        try {
+          // Try to complete the bounty in the main database
+          const result = await completeBounty(
+            bountyCompletionData.bountyId,
+            bountyCompletionData.submissionId
+          );
+
+          if (result) {
+            // Bounty was successfully completed, remove it from the backup set
+            await kvStore.srem(BOUNTY_COMPLETE_SET_KEY, bountyId);
+            await kvStore.hdel(bountyKey);
+            console.log(
+              `Successfully completed bounty ${bountyId} from backup`
+            );
+          } else {
+            console.error(`Failed to complete bounty ${bountyId} from backup`);
+          }
+        } catch (error) {
+          console.error(
+            `Error completing bounty ${bountyId} from backup:`,
+            error
+          );
+        }
+      } else {
+        console.error(
+          `Bounty completion data not found in backup for ${bountyId}`
+        );
+      }
+    }
+  } catch (error) {
+    console.error("Error processing backup bounties:", error);
+  }
 }

@@ -1,7 +1,11 @@
 import { Hono } from "hono";
 import { StatusCode } from "hono/utils/http-status";
+import * as HttpStatusCodes from "stoker/http-status-codes";
+import { notFound, onError } from "stoker/middlewares";
 import { Address, decodeEventLog } from "viem";
-import { BOUNTY_CONTRACT_ADDRESS, bountyAbi } from "./constants";
+import { bountyAbi } from "./constants";
+import db from "./db";
+import { pinoLogger } from "./pino-logger";
 import {
   completeBounty,
   completeBountyBackup,
@@ -10,19 +14,13 @@ import {
 } from "./queries";
 import { completeBountySchema, insertBountiesSchema } from "./schema";
 import { isZeroAddress } from "./utils";
-import { getPublicClient, supportedChainIds } from "./viem";
-import { onError, notFound } from "stoker/middlewares";
-import { pinoLogger } from "./pino-logger";
-import * as HttpStatusCodes from "stoker/http-status-codes";
-import db from "./db";
+import { getPublicClient, supportedChains } from "./viem";
+import env from "./env";
 const app = new Hono();
-
+const activeChain = env.ACTIVE_CHAIN;
 app.use(pinoLogger());
 app.notFound(notFound);
 app.onError(onError);
-
-//arbitrum sepolia
-const activeChain: supportedChainIds[number] = 421614;
 
 app.get("/", async (c) => {
   return c.json({ message: "Active and Strong" });
@@ -91,7 +89,7 @@ async function createHandler(
   }
 
   const bountyDetails = await getPublicClient(activeChain).readContract({
-    address: BOUNTY_CONTRACT_ADDRESS,
+    address: supportedChains[activeChain].contractAddress,
     abi: bountyAbi,
     functionName: "getBountyInfo",
     args: [body.id as Address],

@@ -4,9 +4,6 @@ export const BOUNTY_SET_KEY = "onchain-bounties";
 
 export const BOUNTY_COMPLETE_SET_KEY = 'onchain-bounties-complete'
 
-export const BOUNTY_CONTRACT_ADDRESS =
-  "0x6E46796857a0E061374a0Bcb4Ce01af851773d2A" as const;
-
 export const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 export const bountyAbi = [
