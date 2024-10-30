@@ -27,20 +27,20 @@ export async function createBounty(newBounty: CreateBountySchema) {
 }
 
 export async function completeBounty(bountyId: string, submissionId: number) {
-  const bounty = await db
+  await db
     .update(bounties)
     .set({ status: "complete" })
     .where(eq(bounties.id, bountyId))
     .returning();
   //Where bountyId = submissions.bountyId and submissionId = submissions.id
-  const submission = await db
+  await db
     .update(submissions)
     .set({ isComplete: true })
     .where(
       and(eq(submissions.bountyId, bountyId), eq(submissions.id, submissionId))
     )
     .returning();
-  return { bounty, submission };
+  return true;
 }
 
 // Type definition for Bounty

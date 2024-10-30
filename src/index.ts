@@ -1,20 +1,23 @@
 import { Hono } from "hono";
-import db from "./db";
-import env from "./env";
-import { kvStore } from "./redis";
-import { completeBountySchema, insertBountiesSchema } from "./schema";
-import { getPublicClient, supportedChainIds, supportedChains } from "./viem";
-import { BOUNTY_CONTRACT_ADDRESS, bountyAbi } from "./constants";
+import { StatusCode } from "hono/utils/http-status";
 import { Address, decodeEventLog } from "viem";
-import { isZeroAddress } from "./utils";
+import { BOUNTY_CONTRACT_ADDRESS, bountyAbi } from "./constants";
 import {
   completeBounty,
   completeBountyBackup,
   createBounty,
   createBountyBackup,
 } from "./queries";
-import { StatusCode } from "hono/utils/http-status";
+import { completeBountySchema, insertBountiesSchema } from "./schema";
+import { isZeroAddress } from "./utils";
+import { getPublicClient, supportedChainIds } from "./viem";
+import { onError, notFound } from "stoker/middlewares";
+import { pinoLogger } from "./pino-logger";
 const app = new Hono();
+
+app.use(pinoLogger());
+app.notFound(notFound);
+app.onError(onError);
 
 //arbitrum sepolia
 const activeChain: supportedChainIds[number] = 421614;

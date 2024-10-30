@@ -2,7 +2,8 @@
   "name": "bounties-backup-server",
   "scripts": {
     "dev": "bun run --hot src/index.ts",
-    "start": "bun run src/index.ts"
+    "start": "bun run src/index.ts",
+    "test": "vitest"
   },
   "dependencies": {
     "@libsql/client": "^0.14.0",
@@ -10,6 +11,10 @@
     "drizzle-orm": "^0.35.3",
     "drizzle-zod": "^0.5.1",
     "hono": "^4.6.8",
+    "hono-pino": "^0.4.0",
+    "pino": "^9.5.0",
+    "pino-pretty": "^11.3.0",
+    "stoker": "^1.2.7",
     "viem": "^2.21.36",
     "zod": "^3.23.8"
   },
