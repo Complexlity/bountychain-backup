@@ -13,6 +13,8 @@ import { isZeroAddress } from "./utils";
 import { getPublicClient, supportedChainIds } from "./viem";
 import { onError, notFound } from "stoker/middlewares";
 import { pinoLogger } from "./pino-logger";
+import * as HttpStatusCodes from "stoker/http-status-codes";
+import db from "./db";
 const app = new Hono();
 
 app.use(pinoLogger());
@@ -26,13 +28,28 @@ app.get("/", async (c) => {
   return c.json({ message: "Active and Strong" });
 });
 
+app.get("/bounties", async (c) => {
+  const bounties = await db.query.bounties.findMany();
+  return c.json(bounties);
+});
+app.get("/bounty/:bountyId/submissions", async (c) => {
+  const bountyId = c.req.param("bountyId");
+  const submissions = await db.query.submissions.findMany({
+    where(fields, operators) {
+      return operators.eq(fields.bountyId, bountyId);
+    },
+  });
+  return c.json(submissions);
+});
+
 app.post("/bounties/complete", async (c) => {
   //Try to insert to db directly if main server main have gone down for some reason
   const formData = await c.req.json();
   const res = await completeHandler(formData);
 
-  if (res) c.json({ message: res.message }, res.status);
-
+  if (res) {
+    return c.json({ message: res.message }, res.status);
+  }
   const backup = await completeBountyBackup(formData).catch((e) => {
     return false;
   });
@@ -45,8 +62,12 @@ app.post("/bounties/complete", async (c) => {
 
 app.post("/bounties", async (c) => {
   const body = await c.req.json();
+  console.log({ body });
   const res = await createHandler(body);
-  if (res) c.json({ message: res.message }, res.status);
+
+  if (res) {
+    return c.json({ message: res.message }, res.status);
+  }
 
   const bountyBackup = await createBountyBackup(body).catch((e) => {
     return false;
@@ -63,7 +84,10 @@ async function createHandler(
 ): Promise<{ message: string; status: StatusCode } | null> {
   const { error, data: parsedBody } = insertBountiesSchema.safeParse(body);
   if (error) {
-    return { message: "Invalid formData", status: 429 };
+    return {
+      message: "Invalid formData",
+      status: HttpStatusCodes.UNPROCESSABLE_ENTITY,
+    };
   }
 
   const bountyDetails = await getPublicClient(activeChain).readContract({
@@ -76,21 +100,39 @@ async function createHandler(
     !bountyDetails ||
     isZeroAddress(bountyDetails[0] || bountyDetails[3] < 0)
   ) {
-    return { message: "Bounty not found", status: 404 };
+    return { message: "Bounty not found", status: HttpStatusCodes.NOT_FOUND };
   }
   //try to send to db if error is in main server
-  const newBounty = await createBounty(parsedBody).catch((e) => {
+  try {
+    const newBounty = await createBounty(parsedBody);
+
+    if (newBounty) return { message: "Bounty added successfully", status: 200 };
     return null;
-  });
-  if (newBounty) return { message: "Bounty added successfully", status: 200 };
-  return null;
+  } catch (error) {
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      error.code === "SQLITE_CONSTRAINT_UNIQUE"
+    ) {
+      return {
+        message: `Bounty with id "${parsedBody.id}" already exists`,
+        status: HttpStatusCodes.CONFLICT,
+      };
+    }
+    return null;
+  }
 }
 
 async function completeHandler(
   formData: any
 ): Promise<{ message: string; status: StatusCode } | null> {
   const { error, data } = completeBountySchema.safeParse(formData);
-  if (error) return { message: "Invalid formData", status: 429 };
+  if (error)
+    return {
+      message: "Invalid formData",
+      status: HttpStatusCodes.UNPROCESSABLE_ENTITY,
+    };
   const { hash, bountyId, submissionId } = data;
   const txReceipt = await getPublicClient(activeChain).getTransactionReceipt({
     hash,
@@ -108,10 +150,12 @@ async function completeHandler(
     "bountyId" in decoded.args &&
     !isZeroAddress(decoded.args.bountyId)
   ) {
-    const result = await completeBounty(bountyId, submissionId).catch(
-      (e) => null
-    );
-    if (result) return { message: "Bounty added successfully", status: 200 };
+    const result = await completeBounty(bountyId, submissionId).catch((e) => {
+      console.log("I errored");
+      return null;
+    });
+    if (result && false)
+      return { message: "Bounty added successfully", status: 200 };
     return null;
   }
   return { message: "Bounty payment details not found", status: 400 };

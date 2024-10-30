@@ -30,16 +30,13 @@ export async function completeBounty(bountyId: string, submissionId: number) {
   await db
     .update(bounties)
     .set({ status: "complete" })
-    .where(eq(bounties.id, bountyId))
-    .returning();
-  //Where bountyId = submissions.bountyId and submissionId = submissions.id
+    .where(eq(bounties.id, bountyId));
   await db
     .update(submissions)
     .set({ isComplete: true })
     .where(
       and(eq(submissions.bountyId, bountyId), eq(submissions.id, submissionId))
-    )
-    .returning();
+    );
   return true;
 }
 
