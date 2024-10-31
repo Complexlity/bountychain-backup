@@ -89,7 +89,7 @@ async function createHandler(
   }
 
   const bountyDetails = await getPublicClient(activeChain).readContract({
-    address: supportedChains[activeChain].contractAddress,
+    address: supportedChains[activeChain].bountyContractAddress,
     abi: bountyAbi,
     functionName: "getBountyInfo",
     args: [body.id as Address],

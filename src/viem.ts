@@ -5,17 +5,15 @@ import env from "./env";
 export const supportedChains = {
   arbitrum: {
     chain: arbitrum,
-    contractAddress: "0x0000000000000000000000000000000000000000",
+    bountyContractAddress: "0xEda8B0898DAc56ead2bC4f573C5252D3ef3d0b3c",
   },
   arbitrumSepolia: {
     chain: arbitrumSepolia,
-    contractAddress: 
-  "0x6E46796857a0E061374a0Bcb4Ce01af851773d2A" 
+    bountyContractAddress: "0x6E46796857a0E061374a0Bcb4Ce01af851773d2A",
   },
 } as const;
 
 export type SupportedChainKey = keyof typeof supportedChains;
-
 
 export const getPublicClient = (chain: keyof typeof supportedChains) => {
   return createPublicClient({
