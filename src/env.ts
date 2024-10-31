@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { isAddress } from "viem"; // Assuming you're using viem for address validation
 import { SupportedChainKey, supportedChains } from "./viem";
 
 const Dialect = z.enum(["sqlite", "turso"]);
@@ -16,11 +15,15 @@ const EnvSchema = z
     ACTIVE_CHAIN: z
       .string()
       .default("arbitrumSepolia")
-      .refine((val): val is SupportedChainKey => val in supportedChains, {
-        message:
-          "ACTIVE_CHAIN must be one of the supported chains: " +
-          Object.keys(supportedChains).join(", "),
-      }),
+      .refine(
+        (val): val is SupportedChainKey => val in supportedChains,
+        (val) => ({
+          message:
+            "must be one of the supported chains: " +
+            Object.keys(supportedChains).join(", ") +
+            ` Found: "${val}"`,
+        })
+      ),
   })
   .superRefine((input, ctx) => {
     if (input.NODE_ENV === "production" && !input.DATABASE_AUTH_TOKEN) {

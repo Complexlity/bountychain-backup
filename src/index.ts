@@ -11,12 +11,25 @@ import {
   completeBountyBackup,
   createBounty,
   createBountyBackup,
+  processBackupBounties,
 } from "./queries";
 import { completeBountySchema, insertBountiesSchema } from "./schema";
 import { isZeroAddress } from "./utils";
 import { getPublicClient, supportedChains } from "./viem";
 import env from "./env";
+import { CronJob } from "cron";
 const app = new Hono();
+
+const job = new CronJob(
+  // Run every hour at minute 0
+  "0 * * * *",
+  processBackupBounties,
+  null,
+  true,
+  "utc"
+);
+
+
 const activeChain = env.ACTIVE_CHAIN;
 app.use(pinoLogger());
 app.notFound(notFound);
