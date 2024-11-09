@@ -3,7 +3,7 @@ import { StatusCode } from "hono/utils/http-status";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import { notFound, onError } from "stoker/middlewares";
 import { Address, decodeEventLog } from "viem";
-import { bountyAbi } from "./constants";
+import { bountyAbiNative } from "./constants";
 import db from "./db";
 import { pinoLogger } from "./pino-logger";
 import {
@@ -15,7 +15,7 @@ import {
 } from "./queries";
 import { completeBountySchema, insertBountiesSchema } from "./schema";
 import { isZeroAddress } from "./utils";
-import { getPublicClient, supportedChains } from "./viem";
+import { getPublicClient, SupportedChainKey, supportedChains } from "./viem";
 import env from "./env";
 import { CronJob } from "cron";
 const app = new Hono();
@@ -28,7 +28,6 @@ const job = new CronJob(
   true,
   "utc"
 );
-
 
 const activeChain = env.ACTIVE_CHAIN;
 app.use(pinoLogger());
@@ -101,15 +100,21 @@ async function createHandler(
     };
   }
 
-  const bountyDetails = await getPublicClient(activeChain).readContract({
-    address: supportedChains[activeChain].bountyContractAddress,
+  const publicClient = getPublicClient(activeChain);
+  const type =
+    (parsedBody.token as keyof (typeof supportedChains)[typeof activeChain]["contracts"]) ??
+    "eth";
+  const { address: contractAddress, abi: bountyAbi } =
+    supportedChains[activeChain].contracts[type];
+  const bountyDetails = await publicClient.readContract({
+    address: contractAddress,
     abi: bountyAbi,
     functionName: "getBountyInfo",
-    args: [body.id as Address],
+    args: [parsedBody.id as Address],
   });
   if (
     !bountyDetails ||
-    isZeroAddress(bountyDetails[0] || bountyDetails[3] < 0)
+    isZeroAddress(bountyDetails[0])
   ) {
     return { message: "Bounty not found", status: HttpStatusCodes.NOT_FOUND };
   }
@@ -144,20 +149,31 @@ async function completeHandler(
       message: "Invalid formData",
       status: HttpStatusCodes.UNPROCESSABLE_ENTITY,
     };
-  const { hash, bountyId, submissionId } = data;
+  const { hash, bountyId, submissionId, tokenType } = data;
   const txReceipt = await getPublicClient(activeChain).getTransactionReceipt({
     hash,
   });
   const logs = txReceipt.logs;
-  const decoded = decodeEventLog({
-    abi: bountyAbi,
-    data: logs[0].data,
-    topics: logs[0].topics,
-  });
+  const type =
+    (tokenType as keyof (typeof supportedChains)[SupportedChainKey]["contracts"]) ??
+    "eth";
+  const { abi: bountyAbi } = supportedChains[activeChain].contracts[type];
+  let decoded;
+  for (const log of logs) {
+    try {
+      decoded = decodeEventLog({
+        abi: bountyAbi,
+        data: log.data,
+        eventName: "BountyPaid",
+        topics: log.topics,
+      });
+    } catch (error) {
+      console.log(error);
+      console.log("I errrored");
+    }
+  }
   if (
-    decoded.eventName === "BountyPaid" &&
-    "args" in decoded &&
-    decoded.args &&
+    decoded &&
     "bountyId" in decoded.args &&
     !isZeroAddress(decoded.args.bountyId)
   ) {
@@ -165,8 +181,7 @@ async function completeHandler(
       console.log("I errored");
       return null;
     });
-    if (result && false)
-      return { message: "Bounty added successfully", status: 200 };
+    if (result) return { message: "Bounty added successfully", status: 200 };
     return null;
   }
   return { message: "Bounty payment details not found", status: 400 };

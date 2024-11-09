@@ -9,6 +9,7 @@ import {
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { Address } from "viem";
 import { z } from "zod";
+import { supportedChains } from "./viem";
 
 const sqliteBoolean = integer({ mode: "boolean" });
 
@@ -17,7 +18,9 @@ export const bounties = sqliteTable("bounty", {
   creator: text().notNull(),
   title: text().notNull(),
   description: text().notNull(),
+  token: text().notNull().default("eth"),
   amount: real().notNull(),
+  chainId: integer().notNull().default(supportedChains.arbitrum.chain.id),
   status: text().default("ongoing").notNull(),
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
@@ -112,4 +115,5 @@ export const completeBountySchema = z.object({
     .startsWith("0x")
     .transform((val): Address => val as Address),
   submissionId: z.coerce.number(),
+  tokenType: z.string(),
 });
