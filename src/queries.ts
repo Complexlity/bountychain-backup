@@ -101,7 +101,6 @@ async function processCreateBounties() {
   // Get all bounty IDs from the set
   const bountyIds = await kvStore.smembers(BOUNTY_SET_KEY);
   console.log("Found length", bountyIds.length);
-  return;
 
   // Process each bounty for creation
   for (const bountyId of bountyIds) {
@@ -135,7 +134,6 @@ async function processCompleteBounties() {
   // Get completed bounty IDs from the set
   const completedBountyIds = await kvStore.smembers(BOUNTY_COMPLETE_SET_KEY);
   console.log("Found length", completedBountyIds.length);
-  return;
   // Process each completed bounty
   for (const bountyId of completedBountyIds) {
     const bountyKey = `${BOUNTY_KEY_PREFIX}${bountyId}`;
